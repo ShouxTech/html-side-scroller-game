@@ -1,0 +1,310 @@
+<html>
+	<head>
+		<title>Side Scroller Game</title>
+	</head>
+	<body>
+		<canvas id="canvas" width="1350" height="620"></canvas>
+		
+		<script>
+			const canvas = document.getElementById('canvas');
+			const context = canvas.getContext('2d');
+			
+			const heldKeys = {};
+			
+			let background;
+			let player;
+			let inventory;
+			const coins  = [];
+			const blocks = [];
+			
+			let score = 0;
+			
+			const GROUND = canvas.height - 182;
+			const GRID_PLACEMENT = false; // Optional.
+			const SPAWN_COIN_ON_BUILD = false; // Optional.
+			
+			setInterval(draw, 25);
+			canvas.addEventListener('mousedown', onClick);
+			
+			class Entity {
+				constructor(imageSrc, x, y, width, height) {
+					this.sprite = new Image();
+					this.sprite.src = imageSrc;
+					
+					this.width = width;
+					this.height = height;
+					
+					this.x = x - (this.width / 2);
+					this.y = y;
+				}
+				
+				update() {
+				
+				}
+				
+				draw() {
+					context.drawImage(this.sprite, this.x, this.y, this.width, this.height);
+				}
+			}
+			
+			class Background {
+				constructor() {
+					this.sprite = new Image();
+					this.sprite.src = 'assets/Background.jpg';
+					
+					this.x = 0;
+				}
+				
+				update() {
+					
+				}
+				
+				draw() {
+					context.drawImage(this.sprite, -canvas.width + this.x, 0, canvas.width, canvas.height);
+					context.drawImage(this.sprite, this.x, 0, canvas.width, canvas.height);
+					context.drawImage(this.sprite, canvas.width + this.x, 0, canvas.width, canvas.height);
+					
+					if (this.x == -canvas.width) {
+						this.x = 0;
+					} else if (this.x == canvas.width) {
+						this.x = -canvas.width;
+					}
+				}
+			}
+			
+			class Coin extends Entity {
+				constructor(x, y, scale) {
+					super('assets/Coin.png', x, y, scale, scale);
+					
+					this.startY = this.y;
+					this.direction = 1;
+				}
+				
+				update() {
+					if (this.y == this.startY - 5 || this.y == this.startY + 5) {
+						this.direction = -this.direction;
+					}
+					this.y -= this.direction;
+				}
+			}
+			
+			class Block extends Entity {
+				constructor(x, y) {
+					super(inventory.items[inventory.currentItemIndex], x, y, 71, 78);
+				}
+			}
+			
+			class Player extends Entity {
+				constructor(x, y, width, height) {
+					super('assets/PlayerRight.png', x, y, width, height);
+					
+					this.yVelocity = 0;
+					
+					this.isGrounded = false;
+				}
+				
+				isCollidingWithCoin() {
+					for (const coin of coins) {
+						if (this.x < coin.x + coin.width &&
+							this.x + this.width > coin.x &&
+							this.y < coin.y + coin.height &&
+							this.y + this.height > coin.y)
+						{
+							return coin;
+						}
+					}
+				}
+				
+				isOnBlock() {
+					// Using reverse loop so new blocks get registered first.
+					
+					for (let i = blocks.length - 1; i >= 0; i--) {
+						const block = blocks[i];
+						
+						if (this.x < block.x + block.width - 10 &&
+							this.x + this.width > block.x + 10 &&
+							this.y < block.y + 3 &&
+							this.y + this.height > block.y)
+						{
+							return block;
+						}
+					}
+				}
+				
+				update() {
+					// Physics.
+					
+					if (heldKeys[37] || heldKeys[65]) { // Left, A.
+						this.sprite.src = 'assets/PlayerLeft.png';
+						background.x += 5;
+						for (const coin of coins) {
+							coin.x += 5;
+						}
+						for (const block of blocks) {
+							block.x += 5;
+						}
+					} else if (heldKeys[39] || heldKeys[68]) { // Right, D.
+						this.sprite.src = 'assets/PlayerRight.png';
+						background.x -= 5;
+						for (const coin of coins) {
+							coin.x -= 5;
+						}
+						for (const block of blocks) {
+							block.x -= 5;
+						}
+					}
+					if ((heldKeys[38] || heldKeys[32] || heldKeys[87]) && this.isGrounded) { // Up, Spacebar, W.
+						this.yVelocity = 20;
+					}
+				
+					this.y -= this.yVelocity;
+					this.yVelocity -= 2;
+					
+					const collisionBlock = this.isOnBlock();
+					if (collisionBlock) {
+						this.y = collisionBlock.y - (collisionBlock.height);
+						this.isGrounded = true;
+						this.yVelocity = 0;
+					} else if (this.y >= GROUND) {
+						this.y = GROUND;
+						this.isGrounded = true;
+						this.yVelocity = 0;
+					} else {
+						this.isGrounded = false;
+					}
+					
+					// Other stuff.
+					
+					const collidingCoin = this.isCollidingWithCoin();
+					if (collidingCoin) {
+						coins.splice(coins.indexOf(collidingCoin), 1);
+						score += 10;
+					}
+				}
+			}
+			
+			class Inventory {
+				constructor() {
+					//this.sprite = new Image();
+					//this.sprite.src = 'Inventory.png';
+					
+					this.width = 400;
+					this.height = 55;
+					
+					this.x = (canvas.width / 2) - (this.width / 2);
+					this.y = canvas.height - 60;
+					
+					this.items = [
+						'assets/Block.png',
+						'assets/Rock.png',
+						'assets/Wood.png',
+						'assets/Metal.png',
+						'assets/Leaves.jpg',
+						'assets/SmallTrunk.png'
+					];
+					this.currentItemIndex = 0;
+				}
+				
+				update() {
+				
+				}
+				
+				draw() {
+					//context.drawImage(this.sprite, this.x, this.y, this.width, this.height);
+					
+					for (let i = 0; i < this.items.length; i++) {
+						const item = this.items[i];
+						
+						const image = new Image();
+						image.src = item;
+						
+						context.drawImage(image, (this.x + 10) + (49 * i), this.y + 9, 34, 34);
+					}
+					
+					context.strokeStyle = 'white';
+					context.strokeRect((this.x + 10) + (49 * this.currentItemIndex), this.y + 9, 34, 34);
+				}
+			}
+			
+			onkeydown = onkeyup = function(e) {
+				heldKeys[e.keyCode] = e.type == 'keydown';
+				changeBlock(e);
+			}
+			
+			function changeBlock(e) {
+				const keyCode = e.keyCode;
+				
+				if (keyCode < 49 || keyCode > 57) return;
+				
+				const indexFromZero = keyCode - 49;
+				if (inventory.items[indexFromZero]) {
+					inventory.currentItemIndex = indexFromZero;
+				}
+			}
+			
+			function onClick(e) {
+				let x = e.pageX;
+				let y = e.pageY;
+				
+				if (GRID_PLACEMENT) {
+					//x += 25;
+					x = (Math.floor(x / 71) * 71) + background.x % 71;
+					//y -= 25;
+					y = Math.floor(y / 78) * 78;
+					blocks.push(new Block(x, y));
+				} else {
+					blocks.push(new Block(x, y));
+				}
+				
+				if (SPAWN_COIN_ON_BUILD && Math.random() < 0.25) { // 25% chance of spawning a coin.
+					coins.push(new Coin(x, y - 100, 80));
+				}
+			}
+			
+			function draw() {
+				context.clearRect(0, 0, canvas.width, canvas.height);
+
+				background.update();
+				background.draw();
+				
+				for (const coin of coins) {
+					coin.update();
+					coin.draw();
+				}
+				
+				for (const block of blocks) {
+					block.update();
+					block.draw();
+				}
+				
+				player.update();
+				player.draw();
+				
+				inventory.update();
+				inventory.draw();
+				
+				context.fillStyle = 'white';
+				context.strokeStyle = 'black';
+				context.font = '25px Arial';
+				context.lineWidth = 3;
+				const scoreText = `Score: ${score}`;
+				context.strokeText(scoreText, 10, 30);
+				context.fillText(scoreText, 10, 30);
+			}
+			
+			function init() {
+				background = new Background();
+				player = new Player(canvas.width / 2, GROUND, 172 / 2.3, 206 / 2.3);
+				inventory = new Inventory();
+				
+				coins.push(new Coin(120, GROUND - 20, 80));
+				coins.push(new Coin(1300, GROUND - 20, 80));
+				coins.push(new Coin(-200, GROUND - 20, 80));
+				
+				blocks.push(new Block(800, GROUND - 8));
+			}
+			
+			init();
+		</script>
+	</body>
+</html>

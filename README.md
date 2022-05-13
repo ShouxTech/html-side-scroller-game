@@ -1,1 +1,1 @@
-# html-side-scroller-game
+# HTML Side Scroller Game
